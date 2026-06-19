@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>医院库存与消耗自动管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <!-- 使用更稳定的PDF.js CDN链接 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#10b981',
+                        accent: '#f59e0b',
+                        danger: '#ef4444',
+                        dark: '#1e293b',
+                        light: '#f8fafc'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-shadow {
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            }
+            .hover-lift {
+                transition: transform 0.3s ease, box-shadow 0.3s ease;
+            }
+            .hover-lift:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            }
+            .input-focus {
+                @apply focus:ring-2 focus:ring-primary/50 focus:border-primary focus:outline-none transition-all duration-200;
+            }
+            .btn-primary {
+                @apply bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-200;
+            }
+            .btn-secondary {
+                @apply bg-secondary hover:bg-secondary/90 text-white font-medium py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-200;
+            }
+            .btn-accent {
+                @apply bg-accent hover:bg-accent/90 text-white font-medium py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-200;
+            }
+            .btn-danger {
+                @apply bg-danger hover:bg-danger/90 text-white font-medium py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-200;
+            }
+            .table-cell-padding {
+                @apply px-4 py-3;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans text-dark">
+    <!-- 顶部导航栏 -->
+    <nav class="bg-white shadow-md sticky top-0 z-50 transition-all duration-300">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-hospital-o text-primary text-2xl"></i>
+                <h1 class="text-xl font-bold text-dark">医院库存与消耗自动管理系统</h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <span class="text-gray-600 hidden md:inline-block" id="current-date"></span>
+                <button id="export-btn" class="btn-primary flex items-center space-x-2">
+                    <i class="fa fa-download"></i>
+                    <span>导出数据</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto px-4 py-8">
+        <!-- 统计卡片 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-xl p-6 card-shadow hover-lift">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-gray-500 text-sm font-medium">本月总消耗</p>
+                        <h3 class="text-2xl font-bold mt-1" id="monthly-consumption">0</h3>
+                        <p class="text-xs text-gray-400 mt-1">截至今日</p>
+                    </div>
+                    <div class="bg-primary/10 p-3 rounded-full">
+                        <i class="fa fa-line-chart text-primary text-xl"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-xl p-6 card-shadow hover-lift">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-gray-500 text-sm font-medium">累计总消耗</p>
+                        <h3 class="text-2xl font-bold mt-1" id="total-consumption">0</h3>
+                        <p class="text-xs text-gray-400 mt-1">从首次送货至今</p>
+                    </div>
+                    <div class="bg-secondary/10 p-3 rounded-full">
+                        <i class="fa fa-area-chart text-secondary text-xl"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-xl p-6 card-shadow hover-lift">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-gray-500 text-sm font-medium">当前库存</p>
+                        <h3 class="text-2xl font-bold mt-1" id="current-stock">0</h3>
+                        <p class="text-xs text-gray-400 mt-1">最新更新</p>
+                    </div>
+                    <div class="bg-accent/10 p-3 rounded-full">
+                        <i class="fa fa-cubes text-accent text-xl"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-xl p-6 card-shadow hover-lift">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-gray-500 text-sm font-medium">累计送货量</p>
+                        <h3 class="text-2xl font-bold mt-1" id="total-delivery">0</h3>
+                        <p class="text-xs text-gray-400 mt-1">所有出库单合计</p>
+                    </div>
+                    <div class="bg-blue-100 p-3 rounded-full">
+                        <i class="fa fa-truck text-blue-500 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主要功能区 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+            <!-- PDF上传区域 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-xl p-6 card-shadow h-full">
+                    <h2 class="text-lg font-bold mb-4 flex items-center">
+                        <i class="fa fa-file-pdf-o text-danger mr-2"></i>
+                        PDF出库单上传
+                    </h2>
+                    
+                    <div id="upload-area" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors duration-200 mb-4">
+                        <i class="fa fa-cloud-upload text-4xl text-gray-400 mb-3"></i>
+                        <p class="text-gray-600 mb-1">拖拽PDF文件到此处</p>
+                        <p class="text-gray-400 text-sm">或点击选择文件</p>
+                        <input type="file" id="pdf-input" accept=".pdf" class="hidden">
+                    </div>
+                    
+                    <div id="upload-progress" class="hidden mb-4">
+                        <div class="flex justify-between text-sm text-gray-600 mb-1">
+                            <span id="file-name">正在解析...</span>
+                            <span id="progress-percent">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div id="progress-bar" class="bg-primary h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    
+                    <div id="parse-result" class="hidden">
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                            <div class="flex items-center">
+                                <i class="fa fa-check-circle text-green-500 mr-2"></i>
+                                <h3 class="font-medium text-green-800">解析成功</h3>
+                            </div>
+                            <p class="text-sm text-green-700 mt-1" id="parse-message">已识别到出库单数据</p>
+                        </div>
+                        
+                        <button id="confirm-import" class="btn-secondary w-full flex items-center justify-center space-x-2">
+                            <i class="fa fa-plus"></i>
+                            <span>确认导入到送货表</span>
+                        </button>
+                    </div>
+                    
+                    <div id="parse-error" class="hidden mb-4">
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                            <div class="flex items-center">
+                                <i class="fa fa-exclamation-circle text-red-500 mr-2"></i>
+                                <h3 class="font-medium text-red-800">解析失败</h3>
+                            </div>
+                            <p class="text-sm text-red-700 mt-1" id="error-message">无法解析PDF文件</p>
+                        </div>
+                    </div>
+                    
+                    <!-- 调试模式：显示原始文本 -->
+                    <div id="debug-section" class="hidden mt-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="font-medium text-gray-700">PDF原始文本（调试用）</h3>
+                            <button id="close-debug" class="text-gray-400 hover:text-gray-600">
+                                <i class="fa fa-times"></i>
+                            </button>
+                        </div>
+                        <textarea id="raw-text" class="w-full h-40 border border-gray-300 rounded-lg p-2 text-xs" readonly></textarea>
+                    </div>
+                    
+                    <div class="mt-6">
+                        <h3 class="font-medium text-gray-700 mb-3">手动添加送货记录</h3>
+                        <form id="manual-delivery-form" class="space-y-3">
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">日期</label>
+                                <input type="date" id="delivery-date" class="w-full border border-gray-300 rounded-lg px-3 py-2 input-focus">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">物品名称</label>
+                                <input type="text" id="item-name" placeholder="例如：医用口罩" class="w-full border border-gray-300 rounded-lg px-3 py-2 input-focus">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">数量</label>
+                                <input type="number" id="delivery-quantity" min="1" placeholder="请输入数量" class="w-full border border-gray-300 rounded-lg px-3 py-2 input-focus">
+                            </div>
+                            <button type="submit" class="btn-primary w-full">
+                                添加记录
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 库存更新区域 -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-xl p-6 card-shadow h-full">
+                    <h2 class="text-lg font-bold mb-4 flex items-center">
+                        <i class="fa fa-database text-accent mr-2"></i>
+                        实时库存更新
+                    </h2>
+                    
+                    <div class="mb-6">
+                        <form id="stock-update-form" class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm text-gray-600 mb-1">更新日期</label>
+                                    <input type="date" id="stock-date" class="w-full border border-gray-300 rounded-lg px-3 py-2 input-focus">
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-600 mb-1">物品名称</label>
+                                    <select id="stock-item" class="w-full border border-gray-300 rounded-lg px-3 py-2 input-focus">
+                                        <option value="">选择物品</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-600 mb-1">当前库存数量</label>
+                                    <input type="number" id="stock-quantity" min="0" placeholder="请输入当前库存" class="w-full border border-gray-300 rounded-lg px-3 py-2 input-focus">
+                                </div>
+                            </div>
+                            <div class="flex justify-end">
+                                <button type="submit" class="btn-accent flex items-center space-x-2">
+                                    <i class="fa fa-refresh"></i>
+                                    <span>更新库存</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <div>
+                        <h3 class="font-medium text-gray-700 mb-3">库存历史记录</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="bg-gray-50">
+                                        <th class="table-cell-padding text-left font-medium text-gray-600">日期</th>
+                                        <th class="table-cell-padding text-left font-medium text-gray-600">物品名称</th>
+                                        <th class="table-cell-padding text-right font-medium text-gray-600">库存数量</th>
+                                        <th class="table-cell-padding text-center font-medium text-gray-600">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="stock-history-body">
+                                    <tr class="border-b border-gray-100">
+                                        <td colspan="4" class="py-8 text-center text-gray-400">暂无库存记录</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据表格区域 -->
+        <div class="grid grid-cols-1 gap-8 mb-8">
+            <!-- 送货表 -->
+            <div class="bg-white rounded-xl p-6 card-shadow">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold flex items-center">
+                        <i class="fa fa-list-alt text-blue-500 mr-2"></i>
+                        送货记录表
+                    </h2>
+                    <button id="clear-delivery" class="text-danger hover:text-danger/80 text-sm flex items-center space-x-1 transition-colors">
+                        <i class="fa fa-trash"></i>
+                        <span>清空数据</span>
+                    </button>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="table-cell-padding text-left font-medium text-gray-600">日期</th>
+                                <th class="table-cell-padding text-left font-medium text-gray-600">物品名称</th>
+                                <th class="table-cell-padding text-right font-medium text-gray-600">送货数量</th>
+                                <th class="table-cell-padding text-center font-medium text-gray-600">来源</th>
+                                <th class="table-cell-padding text-center font-medium text-gray-600">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="delivery-table-body">
+                            <tr class="border-b border-gray-100">
+                                <td colspan="5" class="py-8 text-center text-gray-400">暂无送货记录，请上传PDF或手动添加</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- 消耗计算表 -->
+            <div class="bg-white rounded-xl p-6 card-shadow">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold flex items-center">
+                        <i class="fa fa-calculator text-primary mr-2"></i>
+                        消耗计算表
+                    </h2>
+                    <button id="recalculate-btn" class="btn-primary text-sm flex items-center space-x-1">
+                        <i class="fa fa-refresh"></i>
+                        <span>重新计算</span>
+                    </button>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="table-cell-padding text-left font-medium text-gray-600">物品名称</th>
+                                <th class="table-cell-padding text-right font-medium text-gray-600">累计送货量</th>
+                                <th class="table-cell-padding text-right font-medium text-gray-600">当前库存</th>
+                                <th class="table-cell-padding text-right font-medium text-gray-600">累计总消耗</th>
+                                <th class="table-cell-padding text-right font-medium text-gray-600">过往月份消耗</th>
+                                <th class="table-cell-padding text-right font-medium text-gray-600">本月消耗</th>
+                            </tr>
+                        </thead>
+                        <tbody id="consumption-table-body">
+                            <tr class="border-b border-gray-100">
+                                <td colspan="6" class="py-8 text-center text-gray-400">暂无消耗数据，请先添加送货记录和库存</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据可视化 -->
+        <div class="bg-white rounded-xl p-6 card-shadow mb-8">
+            <h2 class="text-lg font-bold mb-6 flex items-center">
+                <i class="fa fa-bar-chart text-secondary mr-2"></i>
+                消耗趋势图
+            </h2>
+            <div class="h-80">
+                <canvas id="consumption-chart"></canvas>
+            </div>
+        </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-dark text-white py-8">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-4 md:mb-0">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa fa-hospital-o text-primary text-xl"></i>
+                        <span class="font-bold">医院库存与消耗自动管理系统</span>
+                    </div>
+                    <p class="text-gray-400 text-sm mt-2">自动解析PDF出库单，智能计算库存消耗</p>
+                </div>
+                <div class="text-gray-400 text-sm">
+                    <p>© 2025 版权所有</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 确认删除模态框 -->
+    <div id="confirm-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl p-6 w-full max-w-md transform transition-all scale-95 opacity-0" id="modal-content">
+            <h3 class="text-lg font-bold mb-4">确认删除</h3>
+            <p class="text-gray-600 mb-6" id="modal-message">你确定要删除这条记录吗？此操作无法撤销。</p>
+            <div class="flex justify-end space-x-3">
+                <button id="cancel-delete" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                    取消
+                </button>
+                <button id="confirm-delete" class="btn-danger">
+                    确认删除
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let deliveryData = JSON.parse(localStorage.getItem('deliveryData')) || [];
+        let stockData = JSON.parse(localStorage.getItem('stockData')) || [];
+        let consumptionData = [];
+        let parsedPdfData = null;
+        let deleteTarget = null;
+        let deleteType = null;
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 检查PDF.js是否加载成功
+            if (typeof pdfjsLib === 'undefined') {
+                console.error('PDF.js加载失败！');
+                showError('PDF解析库加载失败，请检查网络连接或刷新页面重试');
+                document.getElementById('upload-area').classList.add('opacity-50', 'cursor-not-allowed');
+                document.getElementById('upload-area').onclick = null;
+            } else {
+                console.log('PDF.js加载成功，版本:', pdfjsLib.version);
+                // 设置PDF.js worker
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            }
+            
+            // 设置当前日期
+            const today = new Date();
+            const dateString = today.toISOString().split('T')[0];
+            document.getElementById('current-date').textContent = today.toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                weekday: 'long'
+            });
+            document.getElementById('delivery-date').value = dateString;
+            document.getElementById('stock-date').value = dateString;
+            
+            // 渲染初始数据
+            renderDeliveryTable();
+            renderStockHistory();
+            updateItemSelect();
+            calculateConsumption();
+            renderConsumptionTable();
+            updateStats();
+            initChart();
+            
+            // 事件监听
+            setupEventListeners();
+        });
+        
+        // 设置所有事件监听器
+        function setupEventListeners() {
+            // PDF上传区域
+            const uploadArea = document.getElementById('upload-area');
+            const pdfInput = document.getElementById('pdf-input');
+            
+            uploadArea.addEventListener('click', () => {
+                if (typeof pdfjsLib !== 'undefined') {
+                    pdfInput.click();
+                }
+            });
+            
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                if (typeof pdfjsLib !== 'undefined') {
+                    uploadArea.classList.add('border-primary');
+                    uploadArea.classList.add('bg-primary/5');
+                }
+            });
+            
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('border-primary');
+                uploadArea.classList.remove('bg-primary/5');
+            });
+            
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('border-primary');
+                uploadArea.classList.remove('bg-primary/5');
+                
+                if (typeof pdfjsLib === 'undefined') {
+                    showError('PDF解析库未加载，无法上传文件');
+                    return;
+                }
+                
+                if (e.dataTransfer.files.length) {
+                    const file = e.dataTransfer.files[0];
+                    if (file.type === 'application/pdf') {
+                        handlePdfUpload(file);
+                    } else {
+                        showError('请上传PDF格式的文件');
+                    }
+                }
+            });
+            
+            pdfInput.addEventListener('change', (e) => {
+                if (e.target.files.length && typeof pdfjsLib !== 'undefined') {
+                    handlePdfUpload(e.target.files[0]);
+                }
+            });
+            
+            // 确认导入按钮
+            document.getElementById('confirm-import').addEventListener('click', importParsedData);
+            
+            // 关闭调试窗口
+            document.getElementById('close-debug').addEventListener('click', () => {
+                document.getElementById('debug-section').classList.add('hidden');
+            });
+            
+            // 手动添加送货表单
+            document.getElementById('manual-delivery-form').addEventListener('submit', addManualDelivery);
+            
+            // 库存更新表单
+            document.getElementById('stock-update-form').addEventListener('submit', updateStock);
+            
+            // 重新计算按钮
+            document.getElementById('recalculate-btn').addEventListener('click', () => {
+                calculateConsumption();
+                renderConsumptionTable();
+                updateStats();
+                updateChart();
+            });
+            
+            // 清空送货数据
+            document.getElementById('clear-delivery').addEventListener('click', () => {
+                showModal('确定要清空所有送货记录吗？此操作无法撤销。', () => {
+                    deliveryData = [];
+                    localStorage.setItem('deliveryData', JSON.stringify(deliveryData));
+                    renderDeliveryTable();
+                    updateItemSelect();
+                    calculateConsumption();
+                    renderConsumptionTable();
+                    updateStats();
+                    updateChart();
+                });
+            });
+            
+            // 导出数据按钮
+            document.getElementById('export-btn').addEventListener('click', exportData);
+            
+            // 模态框事件
+            document.getElementById('cancel-delete').addEventListener('click', hideModal);
+            document.getElementById('confirm-delete').addEventListener('click', confirmDelete);
+        }
+        
+        // 处理PDF上传
+        async function handlePdfUpload(file) {
+            const uploadProgress = document.getElementById('upload-progress');
+            const progressBar = document.getElementById('progress-bar');
+            const progressPercent = document.getElementById('progress-percent');
+            const fileName = document.getElementById('file-name');
+            const parseResult = document.getElementById('parse-result');
+            const parseError = document.getElementById('parse-error');
+            const parseMessage = document.getElementById('parse-message');
+            const errorMessage = document.getElementById('error-message');
+            const debugSection = document.getElementById('debug-section');
+            const rawTextArea = document.getElementById('raw-text');
+            
+            // 重置状态
+            parseResult.classList.add('hidden');
+            parseError.classList.add('hidden');
+            debugSection.classList.add('hidden');
+            
+            // 显示进度条
+            uploadProgress.classList.remove('hidden');
+            fileName.textContent = file.name;
+            progressBar.style.width = '0%';
+            progressPercent.textContent = '0%';
+            
+            console.log('开始解析PDF文件:', file.name, '大小:', file.size, '字节');
+            
+            try {
+                // 模拟进度更新
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    progress += Math.random() * 10;
+                    if (progress > 80) progress = 80;
+                    progressBar.style.width = `${progress}%`;
+                    progressPercent.textContent = `${Math.round(progress)}%`;
+                }, 200);
+                
+                // 读取文件
+                const arrayBuffer = await file.arrayBuffer();
+                console.log('文件读取完成，开始解析PDF...');
+                
+                // 解析PDF
+                const pdf = await pdfjsLib.getDocument({
+                    data: arrayBuffer,
+                    disableFontFace: true, // 禁用字体加载，提高兼容性
+                    disableRange: true,
+                    disableStream: true
+                }).promise;
+                
+                console.log('PDF解析成功，总页数:', pdf.numPages);
+                
+                let textContent = '';
+                
+                // 提取所有页面文本
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    console.log('正在解析第', i, '页...');
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    
+                    // 更准确地提取文本，保留换行信息
+                    let lastY = -1;
+                    let pageText = '';
+                    
+                    content.items.forEach(item => {
+                        // 如果Y坐标变化较大，说明是新行
+                        if (lastY !== -1 && Math.abs(item.transform[5] - lastY) > 5) {
+                            pageText += '\n';
+                        }
+                        pageText += item.str + ' ';
+                        lastY = item.transform[5];
+                    });
+                    
+                    textContent += pageText + '\n\n';
+                }
+                
+                console.log('文本提取完成，总长度:', textContent.length);
+                console.log('提取的原始文本:\n', textContent);
+                
+                // 完成进度
+                clearInterval(progressInterval);
+                progressBar.style.width = '100%';
+                progressPercent.textContent = '100%';
+                
+                // 显示调试信息
+                rawTextArea.value = textContent;
+                debugSection.classList.remove('hidden');
+                
+                // 解析出库单数据
+                parsedPdfData = parseDeliveryNote(textContent);
+                console.log('解析结果:', parsedPdfData);
+                
+                // 显示解析结果
+                setTimeout(() => {
+                    uploadProgress.classList.add('hidden');
+                    
+                    if (parsedPdfData && parsedPdfData.items.length > 0) {
+                        parseResult.classList.remove('hidden');
+                        parseMessage.textContent = `已识别到 ${parsedPdfData.items.length} 条物品记录，日期：${parsedPdfData.date || '未识别'}`;
+                        document.getElementById('confirm-import').disabled = false;
+                        document.getElementById('confirm-import').classList.remove('opacity-50', 'cursor-not-allowed');
+                    } else {
+                        parseError.classList.remove('hidden');
+                        errorMessage.textContent = '未能识别到有效数据，请查看下方原始文本并手动添加，或联系开发者定制解析规则';
+                    }
+                }, 500);
+                
+            } catch (error) {
+                console.error('PDF解析错误:', error);
+                clearInterval(progressInterval);
+                uploadProgress.classList.add('hidden');
+                parseError.classList.remove('hidden');
+                errorMessage.textContent = `PDF解析失败: ${error.message}\n请检查文件是否损坏或尝试手动添加数据`;
+            }
+        }
+        
+        // 解析出库单文本 - 增强版
+        function parseDeliveryNote(text) {
+            const result = {
+                date: null,
+                items: []
+            };
+            
+            // 预处理文本：去除多余空格和特殊字符
+            text = text.replace(/\s+/g, ' ').trim();
+            
+            // 尝试提取日期（支持多种格式）
+            const datePatterns = [
+                /(\d{4})年(\d{1,2})月(\d{1,2})日/,
+                /(\d{4})-(\d{1,2})-(\d{1,2})/,
+                /(\d{4})\/(\d{1,2})\/(\d{1,2})/,
+                /(\d{1,2})\/(\d{1,2})\/(\d{4})/,
+                /日期[:：]\s*(\d{4}-\d{1,2}-\d{1,2})/,
+                /出库日期[:：]\s*(\d{4}-\d{1,2}-\d{1,2})/
+            ];
+            
+            for (const pattern of datePatterns) {
+                const match = text.match(pattern);
+                if (match) {
+                    if (pattern.source.includes('年')) {
+                        result.date = `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+                    } else if (pattern.source.startsWith('(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})')) {
+                        result.date = `${match[3]}-${match[1].padStart(2, '0')}-${match[2].padStart(2, '0')}`;
+                    } else {
+                        result.date = match[1].replace(/\//g, '-');
+                    }
+                    break;
+                }
+            }
+            
+            // 如果没有找到日期，使用今天的日期
+            if (!result.date) {
+                result.date = new Date().toISOString().split('T')[0];
+            }
+            
+            // 尝试提取物品和数量 - 多种模式
+            // 模式1: 物品名称 数量 单位
+            const pattern1 = /([\u4e00-\u9fa5a-zA-Z0-9()（）\-]+?)\s+(\d+)\s*(个|盒|箱|瓶|支|袋|包|套|片)/g;
+            // 模式2: 数量 单位 物品名称
+            const pattern2 = /(\d+)\s*(个|盒|箱|瓶|支|袋|包|套|片)\s+([\u4e00-\u9fa5a-zA-Z0-9()（）\-]+)/g;
+            // 模式3: 物品名称 数量（无单位）
+            const pattern3 = /([\u4e00-\u9fa5]{2,}?)\s+(\d{1,5})(?!\d)/g;
+            
+            let match;
+            
+            // 尝试模式1
+            while ((match = pattern1.exec(text)) !== null) {
+                const name = match[1].trim();
+                const quantity = parseInt(match[2]);
+                
+                // 过滤掉非物品名称
+                if (name.length > 1 && !name.includes('日期') && !name.includes('单号') && 
+                    !name.includes('合计') && !name.includes('总计') && !name.includes('金额') &&
+                    !name.includes('单位') && !name.includes('数量') && !name.includes('名称')) {
+                    result.items.push({ name, quantity });
+                }
+            }
+            
+            // 如果模式1没有找到，尝试模式2
+            if (result.items.length === 0) {
+                while ((match = pattern2.exec(text)) !== null) {
+                    const name = match[3].trim();
+                    const quantity = parseInt(match[1]);
+                    
+                    if (name.length > 1 && !name.includes('日期') && !name.includes('单号') && 
+                        !name.includes('合计') && !name.includes('总计') && !name.includes('金额')) {
+                        result.items.push({ name, quantity });
+                    }
+                }
+            }
+            
+            // 如果还是没有找到，尝试模式3
+            if (result.items.length === 0) {
+                while ((match = pattern3.exec(text)) !== null) {
+                    const name = match[1].trim();
+                    const quantity = parseInt(match[2]);
+                    
+                    if (name.length > 2 && !name.includes('日期') && !name.includes('单号') && 
+                        !name.includes('合计') && !name.includes('总计') && !name.includes('金额') &&
+                        !name.includes('单位') && !name.includes('数量') && !name.includes('名称')) {
+                        result.items.push({ name, quantity });
+                    }
+                }
+            }
+            
+            // 去重：合并相同名称的物品
+            const uniqueItems = {};
+            result.items.forEach(item => {
+                if (uniqueItems[item.name]) {
+                    uniqueItems[item.name].quantity += item.quantity;
+                } else {
+                    uniqueItems[item.name] = item;
+                }
+            });
+            
+            result.items = Object.values(uniqueItems);
+            
+            return result;
+        }
+        
+        // 导入解析的数据
+        function importParsedData() {
+            if (!parsedPdfData || !parsedPdfData.items.length) return;
+            
+            const date = parsedPdfData.date || document.getElementById('delivery-date').value;
+            
+            parsedPdfData.items.forEach(item => {
+                deliveryData.push({
+                    id: Date.now() + Math.random(),
+                    date: date,
+                    name: item.name,
+                    quantity: item.quantity,
+                    source: 'PDF导入'
+                });
+            });
+            
+            // 保存数据
+            localStorage.setItem('deliveryData', JSON.stringify(deliveryData));
+            
+            // 更新UI
+            renderDeliveryTable();
+            updateItemSelect();
+            calculateConsumption();
+            renderConsumptionTable();
+            updateStats();
+            updateChart();
+            
+            // 重置上传区域
+            document.getElementById('parse-result').classList.add('hidden');
+            document.getElementById('debug-section').classList.add('hidden');
+            document.getElementById('pdf-input').value = '';
+            parsedPdfData = null;
+            
+            // 显示成功提示
+            showToast('数据导入成功');
+        }
+        
+        // 添加手动送货记录
+        function addManualDelivery(e) {
+            e.preventDefault();
+            
+            const date = document.getElementById('delivery-date').value;
+            const name = document.getElementById('item-name').value.trim();
+            const quantity = parseInt(document.getElementById('delivery-quantity').value);
+            
+            if (!date || !name || isNaN(quantity) || quantity <= 0) {
+                alert('请填写完整的送货信息');
+                return;
+            }
+            
+            deliveryData.push({
+                id: Date.now(),
+                date: date,
+                name: name,
+                quantity: quantity,
+                source: '手动添加'
+            });
+            
+            // 保存数据
+            localStorage.setItem('deliveryData', JSON.stringify(deliveryData));
+            
+            // 重置表单
+            document.getElementById('item-name').value = '';
+            document.getElementById('delivery-quantity').value = '';
+            
+            // 更新UI
+            renderDeliveryTable();
+            updateItemSelect();
+            calculateConsumption();
+            renderConsumptionTable();
+            updateStats();
+            updateChart();
+            
+            showToast('送货记录添加成功');
+        }
+        
+        // 更新库存
+        function updateStock(e) {
+            e.preventDefault();
+            
+            const date = document.getElementById('stock-date').value;
+            const item = document.getElementById('stock-item').value;
+            const quantity = parseInt(document.getElementById('stock-quantity').value);
+            
+            if (!date || !item || isNaN(quantity) || quantity < 0) {
+                alert('请填写完整的库存信息');
+                return;
+            }
+            
+            // 检查是否已有该物品的当日库存记录
+            const existingIndex = stockData.findIndex(s => s.date === date && s.name === item);
+            
+            if (existingIndex !== -1) {
+                stockData[existingIndex].quantity = quantity;
+            } else {
+                stockData.push({
+                    id: Date.now(),
+                    date: date,
+                    name: item,
+                    quantity: quantity
+                });
+            }
+            
+            // 保存数据
+            localStorage.setItem('stockData', JSON.stringify(stockData));
+            
+            // 重置表单
+            document.getElementById('stock-quantity').value = '';
+            
+            // 更新UI
+            renderStockHistory();
+            calculateConsumption();
+            renderConsumptionTable();
+            updateStats();
+            updateChart();
+            
+            showToast('库存更新成功');
+        }
+        
+        // 渲染送货表
+        function renderDeliveryTable() {
+            const tbody = document.getElementById('delivery-table-body');
+            
+            if (deliveryData.length === 0) {
+                tbody.innerHTML = `
+                    <tr class="border-b border-gray-100">
+                        <td colspan="5" class="py-8 text-center text-gray-400">暂无送货记录，请上传PDF或手动添加</td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            // 按日期倒序排列
+            const sortedData = [...deliveryData].sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            tbody.innerHTML = sortedData.map(item => `
+                <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                    <td class="table-cell-padding">${item.date}</td>
+                    <td class="table-cell-padding">${item.name}</td>
+                    <td class="table-cell-padding text-right">${item.quantity}</td>
+                    <td class="table-cell-padding text-center">
+                        <span class="px-2 py-1 rounded-full text-xs ${item.source === 'PDF导入' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}">
+                            ${item.source}
+                        </span>
+                    </td>
+                    <td class="table-cell-padding text-center">
+                        <button class="text-danger hover:text-danger/80 transition-colors" onclick="deleteDelivery('${item.id}')">
+                            <i class="fa fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        // 渲染库存历史
+        function renderStockHistory() {
+            const tbody = document.getElementById('stock-history-body');
+            
+            if (stockData.length === 0) {
+                tbody.innerHTML = `
+                    <tr class="border-b border-gray-100">
+                        <td colspan="4" class="py-8 text-center text-gray-400">暂无库存记录</td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            // 按日期倒序排列
+            const sortedData = [...stockData].sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            tbody.innerHTML = sortedData.map(item => `
+                <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                    <td class="table-cell-padding">${item.date}</td>
+                    <td class="table-cell-padding">${item.name}</td>
+                    <td class="table-cell-padding text-right">${item.quantity}</td>
+                    <td class="table-cell-padding text-center">
+                        <button class="text-danger hover:text-danger/80 transition-colors" onclick="deleteStock('${item.id}')">
+                            <i class="fa fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        // 更新物品选择下拉框
+        function updateItemSelect() {
+            const select = document.getElementById('stock-item');
+            
+            // 获取所有唯一的物品名称
+            const items = [...new Set(deliveryData.map(item => item.name))];
+            
+            if (items.length === 0) {
+                select.innerHTML = '<option value="">选择物品</option>';
+                return;
+            }
+            
+            select.innerHTML = '<option value="">选择物品</option>' + 
+                items.map(item => `<option value="${item}">${item}</option>`).join('');
+        }
+        
+        // 计算消耗
+        function calculateConsumption() {
+            consumptionData = [];
+            
+            // 获取所有唯一的物品名称
+            const items = [...new Set([
+                ...deliveryData.map(item => item.name),
+                ...stockData.map(item => item.name)
+            ])];
+            
+            const today = new Date();
+            const currentMonth = today.getMonth();
+            const currentYear = today.getFullYear();
+            
+            items.forEach(itemName => {
+                // 计算累计送货量
+                const totalDelivery = deliveryData
+                    .filter(item => item.name === itemName)
+                    .reduce((sum, item) => sum + item.quantity, 0);
+                
+                // 获取最新库存
+                const itemStock = stockData.filter(item => item.name === itemName);
+                let currentStock = 0;
+                
+                if (itemStock.length > 0) {
+                    // 按日期排序，取最新的
+                    const sortedStock = [...itemStock].sort((a, b) => new Date(b.date) - new Date(a.date));
+                    currentStock = sortedStock[0].quantity;
+                }
+                
+                // 累计总消耗 = 累计送货量 - 当前库存
+                const totalConsumption = totalDelivery - currentStock;
+                
+                // 计算过往月份消耗（本月之前的所有消耗）
+                let pastConsumption = 0;
+                
+                // 获取本月第一天
+                const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+                
+                // 计算本月之前的累计送货量
+                const pastDelivery = deliveryData
+                    .filter(item => item.name === itemName && new Date(item.date) < firstDayOfMonth)
+                    .reduce((sum, item) => sum + item.quantity, 0);
+                
+                // 获取本月第一天的库存（如果有）
+                let firstDayStock = 0;
+                const firstDayStockRecord = itemStock.find(item => 
+                    new Date(item.date).getTime() === firstDayOfMonth.getTime()
+                );
+                
+                if (firstDayStockRecord) {
+                    firstDayStock = firstDayStockRecord.quantity;
+                } else {
+                    // 如果没有本月第一天的库存，尝试找最接近的
+                    const beforeFirstDay = itemStock
+                        .filter(item => new Date(item.date) < firstDayOfMonth)
+                        .sort((a, b) => new Date(b.date) - new Date(a.date));
+                    
+                    if (beforeFirstDay.length > 0) {
+                        firstDayStock = beforeFirstDay[0].quantity;
+                    }
+                }
+                
+                // 过往月份消耗 = 本月之前累计送货量 - 本月第一天库存
+                pastConsumption = pastDelivery - firstDayStock;
+                
+                // 本月消耗 = 累计总消耗 - 过往月份消耗
+                const monthlyConsumption = totalConsumption - pastConsumption;
+                
+                consumptionData.push({
+                    name: itemName,
+                    totalDelivery: totalDelivery,
+                    currentStock: currentStock,
+                    totalConsumption: totalConsumption,
+                    pastConsumption: pastConsumption,
+                    monthlyConsumption: monthlyConsumption
+                });
+            });
+        }
+        
+        // 渲染消耗计算表
+        function renderConsumptionTable() {
+            const tbody = document.getElementById('consumption-table-body');
+            
+            if (consumptionData.length === 0) {
+                tbody.innerHTML = `
+                    <tr class="border-b border-gray-100">
+                        <td colspan="6" class="py-8 text-center text-gray-400">暂无消耗数据，请先添加送货记录和库存</td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = consumptionData.map(item => `
+                <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                    <td class="table-cell-padding font-medium">${item.name}</td>
+                    <td class="table-cell-padding text-right">${item.totalDelivery}</td>
+                    <td class="table-cell-padding text-right">${item.currentStock}</td>
+                    <td class="table-cell-padding text-right font-medium text-primary">${item.totalConsumption}</td>
+                    <td class="table-cell-padding text-right">${item.pastConsumption}</td>
+                    <td class="table-cell-padding text-right font-medium text-accent">${item.monthlyConsumption}</td>
+                </tr>
+            `).join('');
+        }
+        
+        // 更新统计卡片
+        function updateStats() {
+            // 计算总统计
+            const totalDelivery = consumptionData.reduce((sum, item) => sum + item.totalDelivery, 0);
+            const currentStock = consumptionData.reduce((sum, item) => sum + item.currentStock, 0);
+            const totalConsumption = consumptionData.reduce((sum, item) => sum + item.totalConsumption, 0);
+            const monthlyConsumption = consumptionData.reduce((sum, item) => sum + item.monthlyConsumption, 0);
+            
+            // 更新DOM
+            document.getElementById('monthly-consumption').textContent = monthlyConsumption;
+            document.getElementById('total-consumption').textContent = totalConsumption;
+            document.getElementById('current-stock').textContent = currentStock;
+            document.getElementById('total-delivery').textContent = totalDelivery;
+        }
+        
+        // 初始化图表
+        let consumptionChart;
+        
+        function initChart() {
+            const ctx = document.getElementById('consumption-chart').getContext('2d');
+            
+            consumptionChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: '本月消耗趋势',
+                        data: [],
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options:

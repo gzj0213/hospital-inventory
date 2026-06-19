@@ -1,0 +1,57 @@
+{
+  "name": "hospital-inventory",
+  "version": "1.0.0",
+  "description": "医院库存与消耗自动管理系统",
+  "main": "electron-main.js",
+  "author": "Your Name",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron-dev": "npm run build && electron .",
+    "electron-pack": "npm run build && electron-builder --win",
+    "electron-portable": "npm run build && electron-builder --win portable"
+  },
+  "devDependencies": {
+    "vite": "^5.3.1",
+    "tailwindcss": "^4.0.0-alpha.14",
+    "@tailwindcss/vite": "^4.0.0-alpha.14",
+    "electron": "^28.2.10",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.8",
+    "pdfjs-dist": "^3.11.174"
+  },
+  "build": {
+    "appId": "com.hospital.inventory",
+    "productName": "医院库存管理系统",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron-main.js"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "医院库存管理系统"
+    }
+  }
+}
